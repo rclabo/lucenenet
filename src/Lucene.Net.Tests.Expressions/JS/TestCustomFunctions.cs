@@ -56,7 +56,7 @@ namespace Lucene.Net.Expressions.JS
             Assert.AreEqual(Math.Sqrt(20), expr.Evaluate(0, null), DELTA);
         }
 
-        public static double ZeroArgMethod() { return 5; }
+        public static double ZeroArgMethod() => 5;
 
         /// <summary>tests a method with no arguments</summary>
         [Test]
@@ -68,7 +68,7 @@ namespace Lucene.Net.Expressions.JS
             Assert.AreEqual(5, expr.Evaluate(0, null), DELTA);
         }
 
-        public static double OneArgMethod(double arg1) { return 3 + arg1; }
+        public static double OneArgMethod(double arg1) => 3 + arg1;
 
         /// <summary>tests a method with one arguments</summary>
         [Test]
