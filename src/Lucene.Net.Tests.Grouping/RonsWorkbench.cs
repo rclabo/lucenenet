@@ -9,10 +9,7 @@ using Lucene.Net.Analysis.Standard;
 using Lucene.Net.Attributes;
 using Lucene.Net.Documents;
 using Lucene.Net.Index;
-using Lucene.Net.Queries.Function;
-using Lucene.Net.Queries.Function.ValueSources;
-using Lucene.Net.Search.Grouping.Function;
-using Lucene.Net.Search.Grouping.Terms;
+using Lucene.Net.QueryParsers.Classic;
 using Lucene.Net.Store;
 using Lucene.Net.Util;
 using Lucene.Net.Util.Mutable;
@@ -42,6 +39,63 @@ namespace Lucene.Net.Search.Grouping
                 i++;
             }
             assertEquals(2, i);
+        }
+
+        /// <summary>
+        /// Demonstrates how to seek a term and itterate to terms after that.
+        /// Also demonstrates how to get the list of Live (not deleted) docs
+        /// for each term.  Test data used specifically has one doc deleted.
+        /// </summary>
+        [Test]
+        public void GetDocCountForField()
+        {
+            IndexReader reader = GetReaderOf20Models(CreateRandomPhysicalDir(), deleteRec18: true);   //reader has applyAllDeletes: true
+            IndexSearcher searcher = new IndexSearcher(reader);
+
+            string fieldName = "model";
+            BytesRef ValueBytesRef = new BytesRef("Aspire");
+
+            Lucene.Net.Index.Terms terms = MultiFields.GetTerms(reader, fieldName);
+            IBits liveDocs = MultiFields.GetLiveDocs(reader);
+
+            DocsEnum docsEnum = null;
+            TermsEnum termsEnum = terms.GetEnumerator();
+            int count = 0;
+            while (termsEnum.MoveNext())
+            {
+                docsEnum = termsEnum.Docs(liveDocs, docsEnum);
+                while (docsEnum.NextDoc() != DocIdSetIterator.NO_MORE_DOCS)
+                {
+                    count++;
+                }
+            }
+
+
+            /*
+             This is what the data looks like sorted by brand then by sampleId
+             which in a sense is how it will be encounted via the searcher.
+             Ie. Terms ares sorted, and each term's posting list is sorted by docId.
+                    0	4Runner
+                    1	4Runner
+                    16	4Runner
+                    7	A3
+                    13	A3
+                    15	Arnage
+                    12	Aspire
+                    10	Azure
+                    18	Azure   *deleted
+                    2	Bronco
+                    11	Bronco
+                    19	Bronco
+                    8	Camry
+                    17	Camry
+                    5	Celica
+                    3	Expedition
+                    4	Expedition
+                    9	F150 Truck
+                    6	S4
+                    14	S4
+             */
         }
 
 
@@ -201,6 +255,102 @@ namespace Lucene.Net.Search.Grouping
 
 
         /// <summary>
+        /// In this case the value is stored directly in the DocValues. No lookup table is used
+        /// like in SortedDocValuesField which was added in Lucene 4.9 via LUCENE-5748
+        /// Sadly the NumericDocValuesField stores a 64 bit doc value with no provision for a
+        /// 32 bit one.
+        /// </summary>
+        [Test]
+        public void NumericDocValuesField()
+        {
+
+            //Directory indexDir = new RAMDirectory();
+            Directory indexDir = CreateRandomPhysicalDir();
+
+            Analyzer standardAnalyzer = new StandardAnalyzer(LuceneVersion.LUCENE_48);
+
+            IndexWriterConfig indexConfig = new IndexWriterConfig(LuceneVersion.LUCENE_48, standardAnalyzer);
+            indexConfig.UseCompoundFile = false;
+
+            IndexWriter writer = new IndexWriter(indexDir, indexConfig);
+            SearcherManager searcherManager = new SearcherManager(writer, applyAllDeletes: true, null);
+
+            Document doc = new Document();
+            doc.Add(new StringField("primaryKey", "001", Field.Store.YES));
+            doc.Add(new Int32Field("otherId", 1111, Field.Store.YES));
+            doc.Add(new TextField("message", "Unique gifts are great gifts.", Field.Store.YES));
+            doc.Add(new NumericDocValuesField("otherId", 1111));        //this is a long
+            writer.AddDocument(doc);
+
+            doc = new Document();
+            doc.Add(new StringField("primaryKey", "002", Field.Store.YES));
+            doc.Add(new Int32Field("otherId", 2222, Field.Store.YES));
+            doc.Add(new TextField("message", "Everyone is gifted.", Field.Store.YES));
+            doc.Add(new NumericDocValuesField("otherId", 2222));        //this is a long
+            writer.AddDocument(doc);
+
+            doc = new Document();
+            doc.Add(new StringField("primaryKey", "003", Field.Store.YES));
+            doc.Add(new Int32Field("otherId", 1111, Field.Store.YES));
+            doc.Add(new TextField("message", "Gifts are meant to be shared.", Field.Store.YES));
+            doc.Add(new NumericDocValuesField("otherId", 1111));        //this is a long
+            writer.AddDocument(doc);
+
+            writer.Commit();
+
+            searcherManager.MaybeRefreshBlocking();
+            IndexSearcher indexSearcher = searcherManager.Acquire();
+            try
+            {
+                QueryParser parser = new QueryParser(LuceneVersion.LUCENE_48, "exampleField", standardAnalyzer);
+                Query query = parser.Parse("everyone");
+
+                NumericDocValues numericDocValues = null;
+                IBits liveDocs = null;
+                IndexReader reader = indexSearcher.IndexReader;
+
+                Assert.AreEqual(1, reader.Leaves.Count);
+
+                //because in this case there is only on leaf we don't need to walk
+                //through them, we can just reference the first one.
+                AtomicReaderContext ctx = reader.Leaves[0];
+                liveDocs = ctx.AtomicReader.LiveDocs;               //could be used to check if the doc is live ie not deleted
+
+                //Get the sorted doc values.
+                numericDocValues = ctx.AtomicReader.GetNumericDocValues("otherId");
+                if (numericDocValues == null)
+                {
+                    throw new Exception("There are no doc values for the status field");
+                }
+
+
+                BytesRef bytesRef = new BytesRef();
+
+                //Get the docValue for the 0th doc
+                long otherId = numericDocValues.Get(docID: 0);
+                Assert.AreEqual(1111, otherId);
+
+                //Get the docValue for the 1st doc
+                otherId = numericDocValues.Get(docID: 1);
+                Assert.AreEqual(2222, otherId);
+
+                //Get the docValue for the 2nd doc
+                otherId = numericDocValues.Get(docID: 2);
+                Assert.AreEqual(1111, otherId);
+
+
+            }
+            finally
+            {
+                searcherManager.Release(indexSearcher);
+            }
+
+        }
+
+
+
+
+        /// <summary>
         /// Itterates over the docsEnum starting at the current location
         /// and returns a csv list of the doc Ids;
         /// </summary>
@@ -222,8 +372,11 @@ namespace Lucene.Net.Search.Grouping
 
         public Directory CreateRandomPhysicalDir()
         {
+            //ex {C:\Users\Ron\AppData\Local\Temp\LuceneTemp\rontest.workbench.580887201-yx0bdj1b}
             System.IO.DirectoryInfo dirInfo = CreateTempDir($"rontest.workbench.{Random.nextInt()}");       //use DISK based index
-            return NewFSDirectory(dirInfo);
+
+            //return NewFSDirectory(dirInfo);     //uses random FS Directory implementation which we generally don't want for our workbench
+            return FSDirectory.Open(dirInfo.FullName);
         }
 
         public static string ZeroPad11(Int32 val)
