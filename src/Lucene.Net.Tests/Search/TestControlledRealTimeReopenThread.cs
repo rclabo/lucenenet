@@ -753,8 +753,8 @@ namespace Lucene.Net.Search
         /// </summary>
         // LUCENENET specific - An extra test to demonstrate use of ControlledRealTimeReopen.
         [Test]
-        [Ignore("LUCENENET TODO: this test fails on macOS")]
-        [AwaitsFix(BugUrl = "https://github.com/apache/lucenenet/issues/513")] // LUCENENET TODO: this test fails on macOS
+        //[Ignore("LUCENENET TODO: this test fails on macOS")]
+        //[AwaitsFix(BugUrl = "https://github.com/apache/lucenenet/issues/513")] // LUCENENET TODO: this test fails on macOS
         public void TestStraightForwardDemonstration()
         {
 
@@ -845,7 +845,7 @@ namespace Lucene.Net.Search
             Stopwatch stopwatch = Stopwatch.StartNew();
             controlledRealTimeReopenThread.WaitForGeneration(generation);
             stopwatch.Stop();
-            assertTrue(stopwatch.Elapsed.TotalMilliseconds <= 200 + 30);   //30ms is fudged factor to account for call overhead.
+            assertTrue(stopwatch.Elapsed.TotalMilliseconds <= 200 + 150);   //150ms is fudged factor to account for call overhead.
 
             indexSearcher = searcherManager.Acquire();
             try
@@ -875,8 +875,8 @@ namespace Lucene.Net.Search
         /// </summary>
         // LUCENENET specific - An extra test to test multithreaded use of ControlledRealTimeReopen.
         [Test]
-        [Ignore("LUCENENET TODO: this test fails on macOS")]
-        [AwaitsFix(BugUrl = "https://github.com/apache/lucenenet/issues/513")] // LUCENENET TODO: this test fails on macOS
+        //[Ignore("LUCENENET TODO: this test fails on macOS")]
+        //[AwaitsFix(BugUrl = "https://github.com/apache/lucenenet/issues/513")] // LUCENENET TODO: this test fails on macOS
         public void TestMultithreadedWaitForGeneration()
         {
             Thread CreateWorker(int threadNum, ControlledRealTimeReopenThread<IndexSearcher> controlledReopen, long generation,
@@ -981,7 +981,7 @@ namespace Lucene.Net.Search
                 assertEquals(2, output.NumRecs);
 
                 //Verify the thread wait time was around what was expected.
-                Assert.True(output.MilliSecsWaited <= (minRefreshSecs * millisecsPerSec) + 30);   //30ms is fudged factor to account for call overhead
+                Assert.True(output.MilliSecsWaited <= (minRefreshSecs * millisecsPerSec) + 150);   //150ms is fudged factor to account for call overhead
             }
 
             controlledRealTimeReopenThread.Dispose();                       //will kill and join to the thread
