@@ -18,6 +18,7 @@ namespace Lucene.Net.Cli
      * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
      * See the License for the specific language governing permissions and
      * limitations under the License.
+     *
      */
 
     [SuppressMessage("Design", "CA1052:Static holder types should be Static or NotInheritable", Justification = "This class is intended to hold the options that are passed into the app")]
